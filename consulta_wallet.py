@@ -1,10 +1,44 @@
 import tkinter as tk
 from tkinter import messagebox
+import os
+import requests
+
+# Aquí importa los módulos que necesitas de StakeTax
+# Ejemplo: si tienes una función en staketax que consulta la blockchain
+# from staketax_module import consulta_wallet
 
 # Lista de blockchains que se extraen del archivo settings.py
 blockchains = [
     "AKT", "ALGO", "ARCH", "ATOM", "DYDX", "EVMOS", "INJ", "JUNO", "OSMO", "STRD", "TIA", "KUJI", "KYVE", "LUNA1", "LUNA2", "MNTL", "NLS", "NTRN", "SEI", "SOL", "SCRT", "STARS", "STRD", "TIA", "TORI"
 ]
+
+# Función para obtener la información de la wallet
+def obtener_info_wallet(blockchain, wallet):
+    # Aquí es donde iría la lógica de StakeTax para hacer la consulta a las APIs
+    # Ejemplo para una blockchain "KUJI"
+    
+    if blockchain == "KUJI":
+        kuji_node = os.environ.get("STAKETAX_KUJI_NODE", "https://kujira-api.polkachu.com")
+        # Realiza una consulta a la API usando requests (o la que uses en StakeTax)
+        url = f"{kuji_node}/wallet/{wallet}/transactions"  # Ejemplo de URL
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                # Procesar los datos aquí
+                data = response.json()
+                return data
+            else:
+                return None
+        except Exception as e:
+            return f"Error al obtener datos: {e}"
+
+    # Añadir más condiciones para otras blockchains
+    elif blockchain == "ATOM":
+        # Implementar consulta para ATOM
+        pass
+    # Puedes continuar para otras blockchains
+
+    return None
 
 # Función que se ejecuta cuando el usuario presiona "Consultar"
 def consultar():
@@ -16,9 +50,14 @@ def consultar():
         messagebox.showerror("Error", "Por favor, ingresa una wallet válida.")
         return
 
-    # Aquí puedes agregar tu lógica de conexión con las APIs
-    # Ejemplo: conectar con la API de la blockchain seleccionada y mostrar la wallet
-    messagebox.showinfo("Consulta exitosa", f"Blockchain seleccionada: {blockchain}\nWallet ingresada: {wallet}")
+    # Llamar a la función de consulta de StakeTax
+    info = obtener_info_wallet(blockchain, wallet)
+
+    if info:
+        # Mostrar los resultados de la consulta
+        messagebox.showinfo("Consulta exitosa", f"Blockchain seleccionada: {blockchain}\nWallet ingresada: {wallet}\nDatos: {info}")
+    else:
+        messagebox.showerror("Error", "No se pudo obtener información para esa wallet en la blockchain seleccionada.")
 
 # Crear la ventana principal de Tkinter
 root = tk.Tk()
@@ -51,3 +90,4 @@ consultar_button.pack(pady=10)
 
 # Iniciar la interfaz
 root.mainloop()
+
