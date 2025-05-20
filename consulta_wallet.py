@@ -1,7 +1,9 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 import os
 import requests
+import csv
+from datetime import datetime
 
 # Aquí importa los módulos que necesitas de StakeTax
 # Ejemplo: si tienes una función en staketax que consulta la blockchain
@@ -34,11 +36,69 @@ def obtener_info_wallet(blockchain, wallet):
 
     # Añadir más condiciones para otras blockchains
     elif blockchain == "ATOM":
-        # Implementar consulta para ATOM
-        pass
-    # Puedes continuar para otras blockchains
+        # Consulta a la API de Mintscan para ATOM
+        url = f"https://api.mintscan.io/v1/cosmos/account/{wallet}/txs"
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": "Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTA1NSwiaWF0IjoxNzQ2NjE3ODQxfQ.sWnquLQMNJtFpN-nD-LQS22V6GTp87fCirnvOMlAUmx3HFeobGePmfCj8X_Ze0ENje8OJb7Ya0WYMOO42ktBKQ"
+        }
+        try:
+            response = requests.get(url, headers=headers)
+            print(f"Status Code: {response.status_code}")  # Debug info
+            print(f"Response: {response.text[:200]}")  # Debug info
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data
+            elif response.status_code == 404:
+                return {"error": "Wallet no encontrada"}
+            elif response.status_code == 401:
+                return {"error": "Error de autenticación con la API"}
+            else:
+                return {"error": f"Error en la API: {response.status_code}"}
+        except requests.exceptions.RequestException as e:
+            print(f"Error en la petición: {str(e)}")  # Debug info
+            return {"error": f"Error de conexión: {str(e)}"}
+        except Exception as e:
+            print(f"Error inesperado: {str(e)}")  # Debug info
+            return {"error": f"Error inesperado: {str(e)}"}
 
     return None
+
+def exportar_a_csv(transactions, wallet):
+    # Crear nombre de archivo con timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"reporte_cosmos_{wallet}_{timestamp}.csv"
+    
+    # Pedir al usuario dónde guardar el archivo
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=".csv",
+        initialfile=filename,
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    
+    if file_path:
+        try:
+            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                # Escribir encabezados
+                writer.writerow(['Fecha', 'Tipo', 'Cantidad', 'Hash', 'Estado'])
+                
+                # Escribir datos
+                for tx in transactions:
+                    writer.writerow([
+                        tx.get('timestamp', 'N/A'),
+                        tx.get('type', 'N/A'),
+                        tx.get('amount', 'N/A'),
+                        tx.get('txHash', 'N/A'),
+                        tx.get('status', 'N/A')
+                    ])
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al guardar el archivo: {str(e)}")
+            return False
+    return False
 
 # Función que se ejecuta cuando el usuario presiona "Consultar"
 def consultar():
@@ -52,10 +112,45 @@ def consultar():
 
     # Llamar a la función de consulta de StakeTax
     info = obtener_info_wallet(blockchain, wallet)
+    print(f"Info recibida: {info}")  # Debug info
 
     if info:
         # Mostrar los resultados de la consulta
-        messagebox.showinfo("Consulta exitosa", f"Blockchain seleccionada: {blockchain}\nWallet ingresada: {wallet}\nDatos: {info}")
+        if blockchain == "ATOM":
+            if isinstance(info, dict):
+                if "error" in info:
+                    messagebox.showerror("Error", info["error"])
+                    return
+                    
+                if "data" in info:
+                    transactions = info["data"]
+                    if not transactions:
+                        messagebox.showinfo("Consulta exitosa", f"No se encontraron transacciones para la wallet {wallet}")
+                        return
+                        
+                    result_text = f"Blockchain: {blockchain}\nWallet: {wallet}\n\nTransacciones encontradas: {len(transactions)}\n\n"
+                    
+                    for tx in transactions[:10]:  # Mostrar las 10 primeras transacciones
+                        timestamp = tx.get("timestamp", "N/A")
+                        tx_type = tx.get("type", "N/A")
+                        amount = tx.get("amount", "N/A")
+                        result_text += f"Fecha: {timestamp}\nTipo: {tx_type}\nCantidad: {amount}\n\n"
+                    
+                    if len(transactions) > 10:
+                        result_text += f"... y {len(transactions) - 10} transacciones más"
+                    
+                    # Preguntar si quiere exportar a CSV
+                    if messagebox.askyesno("Exportar", "¿Deseas exportar todas las transacciones a un archivo CSV?"):
+                        if exportar_a_csv(transactions, wallet):
+                            messagebox.showinfo("Éxito", "Reporte exportado correctamente")
+                    
+                    messagebox.showinfo("Consulta exitosa", result_text)
+                else:
+                    messagebox.showinfo("Consulta exitosa", f"No se encontraron transacciones para la wallet {wallet}")
+            else:
+                messagebox.showinfo("Consulta exitosa", f"No se encontraron transacciones para la wallet {wallet}")
+        else:
+            messagebox.showinfo("Consulta exitosa", f"Blockchain seleccionada: {blockchain}\nWallet ingresada: {wallet}\nDatos: {info}")
     else:
         messagebox.showerror("Error", "No se pudo obtener información para esa wallet en la blockchain seleccionada.")
 
